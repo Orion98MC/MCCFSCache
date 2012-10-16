@@ -19,5 +19,6 @@
 - (id)setObject:(id)object forPath:(NSString *)relPath;
 - (NSError *)removeObjectForPath:(NSString *)relPath;
 - (id)objectForPath:(NSString *)relPath;
+- (NSString *)fullPath:(NSString *)relPath;
 
 @end

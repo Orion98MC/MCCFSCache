@@ -33,7 +33,6 @@ static NSString *_cachesDir = nil;
     nc = [[[self alloc]init]autorelease];
     
     nc.onGet = ^id(NSString *fullPath) {
-      if (![[NSFileManager defaultManager] fileExistsAtPath:fullPath]) return nil;
       return [[NSFileManager defaultManager] contentsAtPath:fullPath];
     };
     
@@ -77,6 +76,7 @@ static NSString *_cachesDir = nil;
   if (!error) {
     [_caches removeObjectForKey:name];
   }
+  
   return error;
 }
 
@@ -97,6 +97,10 @@ static NSString *_cachesDir = nil;
 - (id)objectForPath:(NSString *)relPath {
   NSAssert(baseDir, @"No base directory set");  
   return onGet(FULL_PATH(relPath));
+}
+
+- (NSString *)fullPath:(NSString *)relPath {
+  return FULL_PATH(relPath);
 }
 
 @end
