@@ -80,6 +80,28 @@ static NSString *_cachesDir = nil;
   return error;
 }
 
++ (NSError *)clearCacheNamed:(NSString *)name {
+  MCCFSCache *nc = [self cacheNamed:name];
+  if (!nc || !nc.baseDir) return nil;
+  NSFileManager *defaultManager = [NSFileManager defaultManager];
+  
+  BOOL isDirectory = FALSE;
+  BOOL exists = [defaultManager fileExistsAtPath:nc.baseDir isDirectory:&isDirectory];
+  if (!exists || !isDirectory) return nil;
+  
+  NSDirectoryEnumerator* en = [defaultManager enumeratorAtPath:nc.baseDir];
+
+  NSError* error = nil;
+  BOOL success;
+  
+  NSString* file;
+  while (file = [en nextObject]) {
+    success = [defaultManager removeItemAtPath:[nc.baseDir stringByAppendingPathComponent:file] error:&error];
+    if (!success) { NSLog(@"Failed to remove cached file: %@", error); }
+  }
+  return error;
+}
+
 #define FULL_PATH(X) [baseDir stringByAppendingPathComponent:X]
 
 - (id)setObject:(id)object forPath:(NSString *)relPath {

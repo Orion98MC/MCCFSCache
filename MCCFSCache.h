@@ -15,6 +15,7 @@
 
 + (id)cacheNamed:(NSString*)name;
 + (NSError *)removeCacheNamed:(NSString *)name;
++ (NSError *)clearCacheNamed:(NSString *)name;
 
 - (id)setObject:(id)object forPath:(NSString *)relPath;
 - (NSError *)removeObjectForPath:(NSString *)relPath;
