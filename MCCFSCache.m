@@ -13,36 +13,37 @@
 @end
 
 @implementation MCCFSCache
-@synthesize onSet, onGet, baseDir;
 
 static NSMutableDictionary *_caches = nil;
 static NSString *_cachesDir = nil;
 
++ (void)initialize {
+  NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+  _cachesDir = [[paths objectAtIndex:0]retain];
+  NSAssert(_cachesDir, @"Could not find caches directory");
+  _caches = [[NSMutableDictionary alloc]init];
+}
+
 + (id)cacheNamed:(NSString*)name {
-  static dispatch_once_t onceToken;
-  dispatch_once(&onceToken, ^{
-    // Caching will be done in the caches directory of the bundle
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-    _cachesDir = [[paths objectAtIndex:0]retain];
-    NSAssert(_cachesDir, @"Could not find caches directory");
-    _caches = [[NSMutableDictionary alloc]init];
-  });
-  
-  MCCFSCache *nc = [_caches objectForKey:name];
+  __block MCCFSCache *nc = [_caches objectForKey:name];
   if (!nc) {
     nc = [[[self alloc]init]autorelease];
     
+    // Default get
     nc.onGet = ^id(NSString *fullPath) {
-      return [[NSFileManager defaultManager] contentsAtPath:fullPath];
+      return [nc get:fullPath];
     };
     
+    // Default set
     nc.onSet = ^id(id data, NSString *fullPath) {
-      NSAssert([data isKindOfClass:[NSData class]], @"Default onSet expects NSData *");
-      [[NSFileManager defaultManager]createFileAtPath:fullPath contents:data attributes:nil];
-      return data;
+      return [nc set:data path:fullPath];
     };
     
     nc.baseDir = [_cachesDir stringByAppendingPathComponent:name];
+    
+    char queueName[100];
+    [[NSString stringWithFormat:@"com.mcc.fscache.%@", name]getCString:queueName maxLength:99 encoding:NSStringEncodingConversionAllowLossy];
+    nc.queue = dispatch_queue_create(queueName, NULL);
     
     // Create the baseDir
     NSError *error = nil;
@@ -63,9 +64,11 @@ static NSString *_cachesDir = nil;
 - (void)dealloc {
   self.onSet = nil;
   self.onGet = nil;
+  dispatch_release(self.queue);
   self.baseDir = nil;
   [super dealloc];
 }
+
 
 + (NSError *)removeCacheNamed:(NSString *)name {
   MCCFSCache *nc = [self cacheNamed:name];
@@ -102,23 +105,36 @@ static NSString *_cachesDir = nil;
   return error;
 }
 
-#define FULL_PATH(X) [baseDir stringByAppendingPathComponent:X]
+#define FULL_PATH(X) [self.baseDir stringByAppendingPathComponent:X]
 
-- (id)setObject:(id)object forPath:(NSString *)relPath {
-  NSAssert(baseDir, @"No base directory set");
-  return onSet(object, FULL_PATH(relPath));
+- (id)get:(NSString *)fullPath {
+  return [[NSFileManager defaultManager] contentsAtPath:fullPath];
 }
 
-- (NSError *)removeObjectForPath:(NSString *)relPath {
-  NSAssert(baseDir, @"No base directory set");
-  NSError *error = nil;
-  [[NSFileManager defaultManager]removeItemAtPath:FULL_PATH(relPath) error:&error];
-  return error;
+- (id)set:(NSData *)data path:(NSString *)fullPath {
+  NSAssert([data isKindOfClass:[NSData class]], @"Default onSet expects NSData *");
+  [[NSFileManager defaultManager]createFileAtPath:fullPath contents:data attributes:nil];
+  return data;
 }
 
-- (id)objectForPath:(NSString *)relPath {
-  NSAssert(baseDir, @"No base directory set");  
-  return onGet(FULL_PATH(relPath));
+- (void)setObject:(id)object forPath:(NSString *)relPath callback:(void(^)(id))callback {
+  dispatch_async(self.queue, ^{
+    id obj = self.onSet(object, FULL_PATH(relPath));
+    if (callback) callback(obj);
+  });
+}
+- (void)removeObjectForPath:(NSString *)relPath callback:(void(^)(id))callback {
+  dispatch_async(self.queue, ^{
+    NSError *error = nil;
+    [[NSFileManager defaultManager]removeItemAtPath:FULL_PATH(relPath) error:&error];
+    if (callback) callback(error);
+  });
+}
+
+- (void)objectForPath:(NSString *)relPath callback:(void(^)(id))callback {
+  dispatch_async(self.queue, ^{
+    callback(self.onGet(FULL_PATH(relPath)));
+  });
 }
 
 - (NSString *)fullPath:(NSString *)relPath {

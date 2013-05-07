@@ -12,14 +12,16 @@
 
 @property (copy, nonatomic) id(^onSet)(id data, NSString*fullPath);
 @property (copy, nonatomic) id(^onGet)(NSString *fullPath);
+@property (assign, nonatomic) dispatch_queue_t queue;
 
 + (id)cacheNamed:(NSString*)name;
 + (NSError *)removeCacheNamed:(NSString *)name;
 + (NSError *)clearCacheNamed:(NSString *)name;
 
-- (id)setObject:(id)object forPath:(NSString *)relPath;
-- (NSError *)removeObjectForPath:(NSString *)relPath;
-- (id)objectForPath:(NSString *)relPath;
+- (void)setObject:(id)object forPath:(NSString *)relPath callback:(void(^)(id))callback;
+- (void)removeObjectForPath:(NSString *)relPath callback:(void(^)(id))callback;
+- (void)objectForPath:(NSString *)relPath callback:(void(^)(id))callback;
+
 - (NSString *)fullPath:(NSString *)relPath;
 
 @end
